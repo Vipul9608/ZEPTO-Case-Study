@@ -1,14 +1,15 @@
+import os
+from pathlib import Path
+
 import streamlit as st
 import pandas as pd
 import plotly.express as px
-import plotly.graph_objects as go
-from plotly.subplots import make_subplots
-from pathlib import Path
 
-# Always resolve the data file relative to this script's location
-DATA_PATH = Path(__file__).parent / "Zepto_Dataset.xlsx"
+# ── Bulletproof path: always relative to this file, works on Streamlit Cloud ──
+BASE_DIR  = Path(__file__).resolve().parent
+DATA_FILE = BASE_DIR / "Zepto_Dataset.xlsx"
 
-# ── Page Config ──────────────────────────────────────────────────────────────
+# ── Page Config ───────────────────────────────────────────────────────────────
 st.set_page_config(
     page_title="Zepto Customer Dashboard",
     page_icon="🛒",
@@ -29,45 +30,49 @@ st.markdown("""
     }
     .metric-card h2 { font-size: 2.2rem; margin: 0; }
     .metric-card p  { font-size: 0.95rem; margin: 5px 0 0; opacity: 0.85; }
-    .stSelectbox label, .stMultiSelect label { font-weight: 600; }
-    div[data-testid="stMetricValue"] { font-size: 2rem; }
 </style>
 """, unsafe_allow_html=True)
 
 # ── Data Loading ──────────────────────────────────────────────────────────────
 @st.cache_data
-def load_data():
-    df = pd.read_excel(DATA_PATH, parse_dates=["created_date"])
-    df["year"]  = df["created_date"].dt.year
-    df["month"] = df["created_date"].dt.month
+def load_data(path: str):
+    df = pd.read_excel(path, parse_dates=["created_date"])
+    df["year"]       = df["created_date"].dt.year
+    df["month"]      = df["created_date"].dt.month
     df["month_name"] = df["created_date"].dt.strftime("%b %Y")
-    df["age_group"] = pd.cut(
+    df["age_group"]  = pd.cut(
         df["age"],
         bins=[17, 25, 35, 45, 55, 61],
         labels=["18–25", "26–35", "36–45", "46–55", "56–60"],
     )
     return df
 
-df = load_data()
+df = load_data(str(DATA_FILE))
 
 # ── Sidebar Filters ───────────────────────────────────────────────────────────
 with st.sidebar:
-    st.image("https://upload.wikimedia.org/wikipedia/commons/thumb/7/7a/Zepto_logo.svg/1200px-Zepto_logo.svg.png", width=140)
+    st.image(
+        "https://upload.wikimedia.org/wikipedia/commons/thumb/7/7a/Zepto_logo.svg/1200px-Zepto_logo.svg.png",
+        width=140,
+    )
     st.title("Filters")
 
-    year_opts = sorted(df["year"].unique())
+    year_opts      = sorted(df["year"].unique())
     selected_years = st.multiselect("Year", year_opts, default=year_opts)
 
-    gender_opts = df["gender"].unique().tolist()
+    gender_opts      = df["gender"].unique().tolist()
     selected_genders = st.multiselect("Gender", gender_opts, default=gender_opts)
 
-    state_opts = sorted(df["state"].unique())
+    state_opts      = sorted(df["state"].unique())
     selected_states = st.multiselect("State", state_opts, default=state_opts)
 
-    age_range = st.slider("Age Range", int(df["age"].min()), int(df["age"].max()), (18, 60))
+    age_range = st.slider(
+        "Age Range",
+        int(df["age"].min()), int(df["age"].max()), (18, 60)
+    )
 
     st.markdown("---")
-    st.caption("Data: Zepto Customer Dataset · 10 000 records")
+    st.caption("Data: Zepto Customer Dataset · 10,000 records")
 
 # ── Apply Filters ─────────────────────────────────────────────────────────────
 mask = (
@@ -89,21 +94,16 @@ k1, k2, k3, k4 = st.columns(4)
 with k1:
     st.markdown(f"""<div class="metric-card">
         <h2>{len(fdf):,}</h2><p>Total Customers</p></div>""", unsafe_allow_html=True)
-
 with k2:
     avg_age = round(fdf["age"].mean(), 1) if len(fdf) else 0
     st.markdown(f"""<div class="metric-card">
         <h2>{avg_age}</h2><p>Average Age</p></div>""", unsafe_allow_html=True)
-
 with k3:
-    n_states = fdf["state"].nunique()
     st.markdown(f"""<div class="metric-card">
-        <h2>{n_states}</h2><p>States Covered</p></div>""", unsafe_allow_html=True)
-
+        <h2>{fdf["state"].nunique()}</h2><p>States Covered</p></div>""", unsafe_allow_html=True)
 with k4:
-    n_cities = fdf["city"].nunique()
     st.markdown(f"""<div class="metric-card">
-        <h2>{n_cities}</h2><p>Cities Covered</p></div>""", unsafe_allow_html=True)
+        <h2>{fdf["city"].nunique()}</h2><p>Cities Covered</p></div>""", unsafe_allow_html=True)
 
 st.markdown("<br>", unsafe_allow_html=True)
 
@@ -120,7 +120,7 @@ with c1:
         hole=0.4,
     )
     fig.update_traces(textposition="inside", textinfo="percent+label")
-    fig.update_layout(margin=dict(t=20, b=20), showlegend=True, height=340)
+    fig.update_layout(margin=dict(t=20, b=20), height=340)
     st.plotly_chart(fig, use_container_width=True)
 
 with c2:
@@ -129,14 +129,13 @@ with c2:
     age_counts.columns = ["Age Group", "Count"]
     fig = px.bar(
         age_counts, x="Age Group", y="Count",
-        color="Count", color_continuous_scale="Purples",
-        text="Count",
+        color="Count", color_continuous_scale="Purples", text="Count",
     )
     fig.update_traces(textposition="outside")
     fig.update_layout(margin=dict(t=20, b=20), coloraxis_showscale=False, height=340)
     st.plotly_chart(fig, use_container_width=True)
 
-# ── Row 2: Monthly Signups + State Bar ───────────────────────────────────────
+# ── Row 2: Monthly Signups + Top States ──────────────────────────────────────
 c3, c4 = st.columns(2)
 
 with c3:
@@ -162,26 +161,22 @@ with c4:
     top_states.columns = ["State", "Customers"]
     fig = px.bar(
         top_states.sort_values("Customers"),
-        x="Customers", y="State",
-        orientation="h",
-        color="Customers",
-        color_continuous_scale="Purp",
-        text="Customers",
+        x="Customers", y="State", orientation="h",
+        color="Customers", color_continuous_scale="Purp", text="Customers",
     )
     fig.update_traces(textposition="outside")
     fig.update_layout(margin=dict(t=20, b=20), coloraxis_showscale=False, height=340)
     st.plotly_chart(fig, use_container_width=True)
 
-# ── Row 3: City Treemap + Gender-Age Violin ──────────────────────────────────
+# ── Row 3: City Treemap + Violin ─────────────────────────────────────────────
 c5, c6 = st.columns(2)
 
 with c5:
     st.subheader("🏙️ City-wise Customer Share")
-    city_counts = fdf["city"].value_counts().reset_index()
+    city_counts = fdf["city"].value_counts().head(20).reset_index()
     city_counts.columns = ["City", "Count"]
     fig = px.treemap(
-        city_counts.head(20),
-        path=["City"], values="Count",
+        city_counts, path=["City"], values="Count",
         color="Count", color_continuous_scale="Purples",
     )
     fig.update_layout(margin=dict(t=20, b=20), height=380)
