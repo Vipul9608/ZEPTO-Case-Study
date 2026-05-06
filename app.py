@@ -3,6 +3,10 @@ import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
+from pathlib import Path
+
+# Always resolve the data file relative to this script's location
+DATA_PATH = Path(__file__).parent / "Zepto_Dataset.xlsx"
 
 # ── Page Config ──────────────────────────────────────────────────────────────
 st.set_page_config(
@@ -33,7 +37,7 @@ st.markdown("""
 # ── Data Loading ──────────────────────────────────────────────────────────────
 @st.cache_data
 def load_data():
-    df = pd.read_excel("Zepto_Dataset.xlsx", parse_dates=["created_date"])
+    df = pd.read_excel(DATA_PATH, parse_dates=["created_date"])
     df["year"]  = df["created_date"].dt.year
     df["month"] = df["created_date"].dt.month
     df["month_name"] = df["created_date"].dt.strftime("%b %Y")
